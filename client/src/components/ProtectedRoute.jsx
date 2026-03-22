@@ -10,15 +10,18 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation();
 
   useEffect(() => {
-    if (!user) {
+    if (loading) return;
+    if (user === null) {
       setProfileChecked(true);
       return;
     }
-    api.get('/profile')
-      .then(res => setHasProfile(!!res.data))
-      .catch(() => setHasProfile(false))
-      .finally(() => setProfileChecked(true));
-  }, [user]);
+    if (user) {
+      api.get('/profile')
+        .then(res => setHasProfile(!!res.data))
+        .catch(() => setHasProfile(false))
+        .finally(() => setProfileChecked(true));
+    }
+  }, [user, loading]);
 
   if (loading || !profileChecked) {
     return (
