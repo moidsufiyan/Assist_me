@@ -1,7 +1,10 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
+import Auth from './pages/Auth';
+import Landing from './pages/Landing';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function NotFound() {
   return (
@@ -24,8 +27,38 @@ export default function App() {
       <div className="min-h-screen bg-[#e5e5e5] font-sans">
         <Navbar />
         <Routes>
-          <Route path="/" element={<Chat />} />
-          <Route path="/profile" element={<Profile />} />
+          {}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Auth mode="login" />} />
+          <Route path="/register" element={<Auth mode="register" />} />
+
+          {}
+          <Route 
+            path="/chat" 
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/profile" 
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/saved" 
+            element={
+              <ProtectedRoute>
+                <div className="p-10 font-black uppercase text-center mt-10">Saved module under loaded memory</div>
+              </ProtectedRoute>
+            } 
+          />
+
+          {}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
