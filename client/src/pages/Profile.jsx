@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const API = '/api/profile';
+import { useLocation } from 'react-router-dom';
+import api from '../utils/api';
 
 const emptyEducation = () => ({ degree: '', college: '', cgpa: '', year: '' });
 const emptyProject = () => ({ name: '', description: '', techStack: '' });
@@ -86,7 +85,7 @@ function DynamicList({ items, setItems, emptyFn, renderItem, addLabel }) {
       {items.map((item, i) => (
         <div key={i} className="relative p-5 border-4 border-black bg-[#f9f9f9] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4">
           <div className="absolute top-0 right-0 bg-black text-white px-2 py-1 text-xs font-black uppercase">
-            IDX_{(i+1).toString().padStart(2, '0')}
+            IDX_{(i + 1).toString().padStart(2, '0')}
           </div>
           <button type="button" onClick={() => remove(i)} className="absolute -top-4 -right-4 bg-red-600 text-white border-2 border-black w-8 h-8 flex items-center justify-center font-black hover:bg-black hover:text-red-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-colors z-10">
             X
@@ -111,27 +110,33 @@ export default function Profile() {
   const [strengths, setStrengths] = useState([]);
   const [weaknesses, setWeaknesses] = useState([]);
   const [goals, setGoals] = useState('');
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const location = useLocation();
+  const showSetupWarning = location.search.includes('setup=true');
 
   useEffect(() => {
-    axios.get(API)
-      .then(res => {
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get('/profile');
         const d = res.data;
         setPersonal(d.personal || { name: '', email: '', phone: '', location: '' });
         setEducation(d.education || []);
         setSkills(d.skills || []);
-        setProjects(d.projects?.map(p => ({ ...p, techStack: p.techStack.join(', ') })) || []);
+        setProjects(d.projects?.map(p => ({ ...p, techStack: Array.isArray(p.techStack) ? p.techStack.join(', ') : '' })) || []);
         setExperience(d.experience || []);
         setAchievements(d.achievements || []);
         setStrengths(d.extra?.strengths || []);
         setWeaknesses(d.extra?.weaknesses || []);
         setGoals(d.extra?.goals || '');
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
   }, []);
 
   const handleSave = async (e) => {
@@ -139,7 +144,7 @@ export default function Profile() {
     setSaving(true);
     setMessage({ text: '', type: '' });
     try {
-      await axios.post(API, {
+      const profileFormData = {
         personal,
         education,
         skills,
@@ -147,8 +152,9 @@ export default function Profile() {
         experience,
         achievements,
         extra: { strengths, weaknesses, goals }
-      });
-      setMessage({ text: 'DATA_WRITTEN :: SUCCESS', type: 'success' });
+      };
+      await api.post('/profile', profileFormData);
+      setMessage({ type: 'success', text: 'CONFIG_MATRIX :: COMMITTED SUCCESSFULLY' });
     } catch {
       setMessage({ text: 'ERR_WRITE_FAILED :: RETRY', type: 'error' });
     } finally {
@@ -171,10 +177,15 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#e5e5e5] font-sans pb-20">
       <div className="max-w-4xl mx-auto px-4 py-10">
-        
-        {/* Header Tape */}
+
+        {showSetupWarning && (
+          <div className="mb-8 p-4 border-4 border-black bg-[#FFDE00] text-black font-black uppercase text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+            &gt;&gt; Complete your profile to get accurate AI responses. &lt;&lt;
+          </div>
+        )}
+
         <div className="mb-10 p-6 border-4 border-black bg-[#00F0FF] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-2 text-xs font-black opacity-30 tracking-widest transform rotate-90 origin-bottom-right">FORM//0X01</div>
+          <div className="absolute top-0 right-0 p-2 text-xs font-black opacity-30 tracking-widest transform rotate-90 origin-bottom-right">FORM</div>
           <h1 className="text-4xl font-black text-black uppercase tracking-tighter mb-2">SYSTEM.DATABASE</h1>
           <p className="text-black font-bold text-sm uppercase tracking-wider bg-white inline-block px-2 py-0.5 border-2 border-black">Ensure parameters are accurate for ML alignment.</p>
         </div>
@@ -187,7 +198,6 @@ export default function Profile() {
 
         <form onSubmit={handleSave} className="space-y-12">
 
-          {/* Personal */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="01. Identity_Matrix" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -198,7 +208,6 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Education */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="02. ACADEMIC_RECORDS" />
             <DynamicList
@@ -217,13 +226,11 @@ export default function Profile() {
             />
           </div>
 
-          {/* Skills */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="03. TECH_PARAMETERS" />
             <TagInput items={skills} setItems={setSkills} label="Indexed Capabilities" placeholder="Type module and fire ADD" />
           </div>
 
-          {/* Projects */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="04. DEPLOYMENTS" />
             <DynamicList
@@ -250,7 +257,6 @@ export default function Profile() {
             />
           </div>
 
-          {/* Experience */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="05. ORG_HISTORY" />
             <DynamicList
@@ -280,13 +286,11 @@ export default function Profile() {
             />
           </div>
 
-          {/* Achievements */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="06. VALIDATIONS" />
             <TagInput items={achievements} setItems={setAchievements} label="Awards & Certifications" placeholder="Type and fire ADD" />
           </div>
 
-          {/* Extra */}
           <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <SectionHeader title="07. META_VARIABLES" />
             <div className="space-y-6">
@@ -305,19 +309,18 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Submit */}
           <div className="sticky bottom-6 z-40 bg-[#f0f0f0] border-4 border-black p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center">
-             <div className="hidden sm:block">
-               <span className="text-black font-black uppercase tracking-widest text-xs">STATUS:</span>
-               <span className={`ml-2 font-bold uppercase text-xs ${saving ? 'text-red-500 animate-pulse' : 'text-slate-500'}`}>
-                 {saving ? 'UPLOADING...' : 'AWAITING_COMMIT'}
-               </span>
-             </div>
-             <button
+            <div className="hidden sm:block">
+              <span className="text-black font-black uppercase tracking-widest text-xs">STATUS:</span>
+              <span className={`ml-2 font-bold uppercase text-xs ${saving ? 'text-red-500 animate-pulse' : 'text-slate-500'}`}>
+                {saving ? 'UPLOADING...' : 'AWAITING_COMMIT'}
+              </span>
+            </div>
+            <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-8 py-3.5 bg-[#00F0FF] border-4 border-black text-black font-black text-lg tracking-widest uppercase hover:bg-black hover:text-[#00F0FF] transition-colors shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:hover:bg-[#00F0FF] disabled:hover:text-black flex items-center justify-center gap-2"
-             >
+              className="w-full sm:w-auto px-8 py-3.5 bg-[#00F0FF] border-4 border-black text-black font-black text-lg tracking-widest uppercase hover:bg-black hover:text-[#00F0FF] transition-colors shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
               {saving ? 'SYNC_ACTIVE...' : 'COMMIT.DATA()'}
             </button>
           </div>
