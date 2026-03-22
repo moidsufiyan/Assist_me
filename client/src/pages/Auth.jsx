@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -7,9 +7,16 @@ export default function Auth({ mode = 'login' }) {
   const isLogin = mode === 'login';
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [serverReady, setServerReady] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  useEffect(() => {
+    api.get('/health')
+      .then(() => setServerReady(true))
+      .catch(() => setServerReady(true));
+  }, []);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -66,6 +73,13 @@ export default function Auth({ mode = 'login' }) {
             {isLogin ? 'SYS.LOGIN' : 'SYS.REGISTER'}
           </h1>
         </div>
+
+        {!serverReady && (
+          <div className="mb-6 p-3 border-4 border-black bg-[#FFDE00] text-black font-black uppercase text-xs tracking-wider flex items-center gap-2">
+            <span className="w-2 h-2 bg-black rounded-full animate-ping inline-block"></span>
+            Server warming up... first request may take 30s
+          </div>
+        )}
 
         {message.text && (
           <div className={`p-3 mb-6 border-4 border-black font-black uppercase tracking-wider text-xs ${message.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-500 text-black'}`}>

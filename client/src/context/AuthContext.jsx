@@ -8,10 +8,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/auth/me')
-      .then(res => setUser(res.data.user))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    const init = async () => {
+      try { await api.get('/health'); } catch {}
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.data.user);
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
   const login = (userData) => setUser(userData);
