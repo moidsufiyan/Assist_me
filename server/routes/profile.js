@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const UserProfile = require('../models/UserProfile');
+const auth = require('../middleware/auth');
 
 const sanitizeString = (val) => (typeof val === 'string' ? val.trim().slice(0, 500) : undefined);
 const sanitizeArray = (arr) => Array.isArray(arr) ? arr.map(s => typeof s === 'string' ? s.trim().slice(0, 200) : '').filter(Boolean) : [];
 
-// @route   GET /api/profile
-router.get('/', async (req, res) => {
+
+router.get('/', auth, async (req, res) => {
   try {
-    const profile = await UserProfile.findOne();
+    const profile = await UserProfile.findOne({ owner: req.user.id });
     if (!profile) return res.status(404).json({ message: 'Profile not found' });
     res.json(profile);
   } catch {
@@ -16,12 +17,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// @route   POST /api/profile
-router.post('/', async (req, res) => {
+
+router.post('/', auth, async (req, res) => {
   const b = req.body;
 
-  // Sanitize all string inputs before writing to DB
+  
   const profileFields = {
+    owner: req.user.id,
     personal: {
       name: sanitizeString(b.personal?.name),
       email: sanitizeString(b.personal?.email)?.toLowerCase(),
@@ -57,10 +59,12 @@ router.post('/', async (req, res) => {
   };
 
   try {
-    let profile = await UserProfile.findOne();
+    let profile = await UserProfile.findOne({ owner: req.user.id });
+
     if (profile) {
+      
       profile = await UserProfile.findOneAndUpdate(
-        { _id: profile._id },
+        { owner: req.user.id },
         { $set: profileFields },
         { new: true, runValidators: true }
       );
@@ -72,6 +76,47 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Error saving profile:', err.message);
     res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+
+
+router.patch('/', auth, async (req, res) => {
+  const b = req.body; 
+  
+  try {
+    const updateQuery = {};
+    const pushQuery = {};
+
+    if (b.personal) updateQuery['personal'] = { ...b.personal };
+    if (b.extra?.goals) updateQuery['extra.goals'] = b.extra.goals;
+
+    
+    if (b.skills) pushQuery['skills'] = { $each: b.skills };
+    if (b.achievements) pushQuery['achievements'] = { $each: b.achievements };
+    if (b.education) pushQuery['education'] = { $each: b.education };
+    if (b.projects) pushQuery['projects'] = { $each: b.projects };
+    if (b.experience) pushQuery['experience'] = { $each: b.experience };
+
+    const finalQuery = {};
+    if (Object.keys(updateQuery).length > 0) finalQuery['$set'] = updateQuery;
+    if (Object.keys(pushQuery).length > 0) finalQuery['$addToSet'] = pushQuery;
+
+    if (Object.keys(finalQuery).length === 0) {
+      return res.status(400).json({ message: 'No valid update parameters provided' });
+    }
+
+    const profile = await UserProfile.findOneAndUpdate(
+      { owner: req.user.id },
+      finalQuery,
+      { new: true, upsert: true }
+    );
+
+    res.json(profile);
+
+  } catch (err) {
+    console.error('PATCH profile error:', err.message);
+    res.status(500).json({ message: 'Failed to apply delta update' });
   }
 });
 
