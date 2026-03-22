@@ -21,12 +21,9 @@ export default function Auth({ mode = 'login' }) {
         : formData;
 
       const res = await api.post(endpoint, payload);
-      
-      
-      localStorage.setItem('token', res.data.token);
+
       localStorage.setItem('user', JSON.stringify(res.data.user));
 
-      
       try {
         const profileRes = await api.get('/profile');
         if (profileRes.data) {
