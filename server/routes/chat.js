@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const UserProfile = require('../models/UserProfile');
 const OpenAI = require('openai');
+const auth = require('../middleware/auth');
 
-// Initialize the OpenAI client based on available API Keys in .env
 let openai;
 let defaultModel = process.env.GROQ_API_KEY ? 'llama-3.3-70b-versatile' : 'gpt-3.5-turbo';
 
@@ -16,14 +16,12 @@ if (process.env.GROQ_API_KEY) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
   });
-} else {
-  console.warn("WARNING: Neither GROQ_API_KEY nor OPENAI_API_KEY is set in .env!");
 }
 
-// @route   POST /api/chat
-// @desc    Process a user chat query using profile data
-// @access  Public (for now)
-router.post('/', async (req, res) => {
+
+
+
+router.post('/', auth, async (req, res) => {
   try {
     const { userQuery } = req.body;
 
@@ -32,57 +30,77 @@ router.post('/', async (req, res) => {
     }
 
     if (userQuery.length > 1000) {
-      return res.status(400).json({ message: 'Query exceeds max length of 1000 characters' });
+      return res.status(400).json({ message: 'Query exceeds 1000 characters' });
     }
 
     if (!openai) {
-      return res.status(500).json({ message: 'AI Service is not configured properly in the backend.' });
+      return res.status(500).json({ message: 'AI Service is not configured properly.' });
     }
 
-    // 1. Fetching the user profile from MongoDB
-    const profile = await UserProfile.findOne();
     
-    // We stringify the profile so the AI can read it. Exclude sensitive internal mongodb fields or keep it simple.
+    const profile = await UserProfile.findOne({ owner: req.user.id });
+
     let profileDataString = "No profile data exists currently. Inform the user to create a profile first.";
     if (profile) {
-      // Exclude _id and __v for cleaner context
-      const profileToContext = profile.toObject();
-      delete profileToContext._id;
-      delete profileToContext.__v;
-      delete profileToContext.createdAt;
-      delete profileToContext.updatedAt;
-      profileDataString = JSON.stringify(profileToContext, null, 2);
+      
+      profileDataString = JSON.stringify(profile, null, 2);
     }
 
-    // 2. Constructing the prompt as requested
-    const systemPrompt = `You are a professional assistant helping a student fill job and college forms.
-Rules:
-Only use the provided user data
-Do NOT invent any information
-If data is missing, say 'Not provided'
+    
+    const systemPrompt = `
+You are an AI Assistant managing professional profiles.
+Below is the user's current Profile Config:
+${profileDataString}
 
-User Data:
-${profileDataString}`;
+Instructions:
+1. Answer questions based ONLY on this profile data.
+2. IF the user is telling you NEW facts about themselves (e.g., "I know React", "I worked at Google in 2023"), answer normally to confirm, BUT also output a JSON block inside an <UPDATE> tag at the absolute end.
 
-    // 3. Call the AI API
+Guidelines for <UPDATE> tag:
+- Output only ONE <UPDATE> tag with valid JSON.
+- Valid root keys: "personal", "education", "skills", "projects", "experience", "achievements", "extra".
+- ONLY include the fields being updated.
+- Array fields (like skills, projects) should be arrays containing the NEW items the user is adding.
+- Example: <UPDATE>{ "skills": ["React", "CSS"] }</UPDATE>
+- Be precise. The frontend parses this strictly.
+`;
+
+    
     const response = await openai.chat.completions.create({
       model: defaultModel,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Question: ${userQuery}\n\nAnswer clearly and professionally.` }
+        { role: 'user', content: userQuery }
       ],
-      temperature: 0.2, // low temperature to promote factual consistency based on provided data
+      temperature: 0.3,
       max_tokens: 500
     });
 
-    const aiAnswer = response.choices[0].message.content;
+    let answer = response.choices[0].message.content;
+    let proposedUpdate = null;
 
-    // 4. Return the response
-    res.json({ answer: aiAnswer });
+    
+    const updateRegex = /<UPDATE>([\s\S]*?)<\/UPDATE>/;
+    const match = answer.match(updateRegex);
+
+    if (match && match[1]) {
+      try {
+        proposedUpdate = JSON.parse(match[1].trim());
+        
+        answer = answer.replace(updateRegex, '').trim();
+      } catch (err) {
+        console.error('Failed to parse AI update JSON:', err.message);
+      }
+    }
+
+    res.json({ 
+      answer,
+      proposedUpdate 
+    });
 
   } catch (err) {
-    console.error('Error in chat API:', err.message);
-    res.status(500).json({ message: 'AI processing failed. Please try again.' });
+    console.error('Error in chat API:', err);
+    res.status(500).json({ message: `AI processing failed: ${err.message}` });
   }
 });
 
