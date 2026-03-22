@@ -7,13 +7,22 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+const whitelist = [
+  'https://assistme-lake.vercel.app',
+  'http://localhost:5173'
+];
 
 app.use(cors({
-  origin: CLIENT_URL,
+  origin: function (origin, callback) {
+    if (!origin || whitelist.includes(origin) || whitelist.includes(origin.replace(/\/$/, ''))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json({ limit: '10kb' }));
