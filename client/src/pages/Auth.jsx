@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Auth({ mode = 'login' }) {
   const isLogin = mode === 'login';
@@ -8,6 +9,7 @@ export default function Auth({ mode = 'login' }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -16,13 +18,24 @@ export default function Auth({ mode = 'login' }) {
 
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      const payload = isLogin 
+      const payload = isLogin
         ? { email: formData.email, password: formData.password }
         : formData;
 
       const res = await api.post(endpoint, payload);
-
+      login(res.data.user);
       localStorage.setItem('user', JSON.stringify(res.data.user));
+
+      if (!isLogin) {
+        await api.post('/profile', {
+          personal: {
+            name: formData.name,
+            email: formData.email
+          }
+        });
+        navigate('/profile?setup=true');
+        return;
+      }
 
       try {
         const profileRes = await api.get('/profile');
@@ -34,6 +47,7 @@ export default function Auth({ mode = 'login' }) {
       } catch {
         navigate('/profile?setup=true');
       }
+
     } catch (err) {
       setMessage({
         text: err.response?.data?.message || 'Authentication error. Please try again.',
@@ -47,8 +61,6 @@ export default function Auth({ mode = 'login' }) {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[#e5e5e5] flex items-center justify-center p-4">
       <div className="w-full max-w-md border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 sm:p-8">
-        
-        {}
         <div className="mb-8 p-4 border-4 border-black bg-[#00F0FF] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center">
           <h1 className="text-2xl font-black text-black uppercase tracking-tighter">
             {isLogin ? 'SYS.LOGIN' : 'SYS.REGISTER'}
@@ -111,9 +123,9 @@ export default function Auth({ mode = 'login' }) {
 
         <div className="mt-6 text-center">
           <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-            {isLogin ? "No identity matrix?" : "Already registered?"}
-            <Link 
-              to={isLogin ? '/register' : '/login'} 
+            {isLogin ? 'No identity matrix?' : 'Already registered?'}
+            <Link
+              to={isLogin ? '/register' : '/login'}
               className="ml-2 text-black hover:underline font-black hover:text-[#00F0FF] transition-colors"
             >
               {isLogin ? 'CREATE_ONE' : 'LOGIN_HERE'} »

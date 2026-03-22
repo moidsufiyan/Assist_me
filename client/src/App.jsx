@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
@@ -23,45 +24,23 @@ function NotFound() {
 
 export default function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-[#e5e5e5] font-sans">
-        <Navbar />
-        <Routes>
-          {}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Auth mode="login" />} />
-          <Route path="/register" element={<Auth mode="register" />} />
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen bg-[#e5e5e5] font-sans">
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Auth mode="login" />} />
+            <Route path="/register" element={<Auth mode="register" />} />
 
-          {}
-          <Route 
-            path="/chat" 
-            element={
-              <ProtectedRoute>
-                <Chat />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/profile" 
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/saved" 
-            element={
-              <ProtectedRoute>
-                <div className="p-10 font-black uppercase text-center mt-10">Saved module under loaded memory</div>
-              </ProtectedRoute>
-            } 
-          />
+            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/saved" element={<ProtectedRoute><div className="p-10 font-black uppercase text-center mt-10">Saved module under loaded memory</div></ProtectedRoute>} />
 
-          {}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
-    </Router>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
