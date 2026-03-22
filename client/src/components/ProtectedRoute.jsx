@@ -3,45 +3,43 @@ import { Navigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 
 export default function ProtectedRoute({ children }) {
-  const token = localStorage.getItem('token');
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('loading');
   const [hasProfile, setHasProfile] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
-    const checkProfile = async () => {
+    const verify = async () => {
       try {
-        const res = await api.get('/profile');
-        setHasProfile(!!res.data);
+        await api.get('/auth/me');
+        try {
+          const profileRes = await api.get('/profile');
+          setHasProfile(!!profileRes.data);
+        } catch {
+          setHasProfile(false);
+        }
+        setStatus('authenticated');
       } catch {
-        setHasProfile(false);
-      } finally {
-        setLoading(false);
+        setStatus('unauthenticated');
       }
     };
 
-    if (token) {
-      checkProfile();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
+    verify();
+  }, []);
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (loading) {
+  if (status === 'loading') {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-64px)] bg-[#e5e5e5]">
         <div className="p-4 border-4 border-black bg-black text-[#00F0FF] font-black uppercase shadow-[4px_4px_0px_0px_#00F0FF] animate-pulse">
-          VALIDATING_DATA_MATRIX...
+          VALIDATING_SESSION...
         </div>
       </div>
     );
   }
 
-  
+  if (status === 'unauthenticated') {
+    return <Navigate to="/login" replace />;
+  }
+
   if (!hasProfile && location.pathname === '/chat') {
     return <Navigate to="/profile?setup=true" replace />;
   }
